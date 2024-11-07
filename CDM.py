@@ -156,11 +156,9 @@ def get_CDM(p):
     for pt in os.listdir(p):
         nn = split_string(pt)[1]
         mask_gt = imread(f'{p}/gt_{nn}')[:, :, 1]
-        mask_gt = dilation(dilation(mask_gt))
         if mask_gt.max() == 1:
             mask_gt = (255 * mask_gt).astype('uint8')
         mask_pred = imread(f'{p}/pred_{nn}')
-        mask_pred = dilation(mask_pred)
         if mask_pred.max() == 1:
             mask_pred = (255 * mask_pred).astype('uint8')
         CDM_norm, CDM = structure_similarity(mask_gt, mask_pred, plot=False)
