@@ -4,28 +4,21 @@ import numpy as np
 from shapely.geometry import Polygon
 from skimage.draw import polygon as draw_polygon
 from skimage.draw import line as draw_line
-from scipy.ndimage import binary_erosion, binary_dilation
+from scipy.ndimage import binary_erosion, binary_dilation, label, binary_fill_holes
 from skimage.morphology import dilation
 from skimage.io import imread, imshow, imsave
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 import os, shutil, re
 import pandas as pd
-
-import os
-import numpy as np
-from skimage.io import imread
-from scipy.ndimage import label, binary_fill_holes
-import matplotlib.pyplot as plt
+import pickle
+from concurrent.futures import ProcessPoolExecutor
+from PIL import Image
+from concurrent.futures import ThreadPoolExecutor
 
 def measure_betti_numbers(file_path, plot=False):
     structure = np.ones((3, 3), dtype=int)
-    # delta_betti0 = []
-    # delta_betti1 = []
-    # for file_name in os.listdir(directory_path):
-    #     file_path = os.path.join(directory_path, file_name)
-    #     if os.path.isfile(file_path) and file_name.endswith(".png") and file_name.startswith("gt_"):
-            # Ground Truth
+
     im_g = imread(file_path, as_gray=True) 
     if im_g.max() > 1:
         im_g = im_g/255
@@ -35,7 +28,6 @@ def measure_betti_numbers(file_path, plot=False):
     holes_array_gt = filled_array_gt.astype(int) - gt.astype(int)
     labeled_holes_gt, betti1_gt = label(holes_array_gt, structure=structure)
 
-    # Prediction
     pred_file_path = file_path.replace('gt_', 'pred_')
     im_p = imread(pred_file_path, as_gray=True) 
     if im_p.max() > 1:
@@ -45,17 +37,12 @@ def measure_betti_numbers(file_path, plot=False):
     filled_array_p = binary_fill_holes(p)
     holes_array_p = filled_array_p.astype(int) - p.astype(int)
     labeled_holes_p, betti1_p = label(holes_array_p, structure=structure)
-
-    # CDM_norm, CDM = structure_similarity(mask_gt, mask_pred, plot=False)
-    # accuracy, precision, recall, dice, iou = compute_metrics_from_images(mask_gt/255, mask_pred/255)
-    # errors.append([CDM, accuracy, precision, recall, dice, iou])
-
+    
     delta_betti0= betti0_gt - betti0_p
     delta_betti1= betti1_gt - betti1_p
     
     if plot:
         fig, axes = plt.subplots(3, 2, figsize=(15, 15))
-        # Ground Truth Visualization
         axes[0, 0].imshow(gt, cmap='gray')
         axes[0, 0].set_title(f"Ground Truth (GT)\nBetti0: {betti0_gt}, Betti1: {betti1_gt}")
         axes[0, 1].imshow(labeled_array_gt, cmap='nipy_spectral')
@@ -66,7 +53,6 @@ def measure_betti_numbers(file_path, plot=False):
         axes[1, 1].imshow(labeled_holes_gt, cmap='nipy_spectral')
         axes[1, 1].set_title(f"Holes (GT)\nBetti1: {betti1_gt}")
 
-        # Prediction Visualization
         axes[2, 0].imshow(p, cmap='gray')
         axes[2, 0].set_title(f"Prediction (P)\nBetti0: {betti0_p}, Betti1: {betti1_p}")
         axes[2, 1].imshow(labeled_array_p, cmap='nipy_spectral')
@@ -75,8 +61,6 @@ def measure_betti_numbers(file_path, plot=False):
         plt.tight_layout()
         plt.show()
     return delta_betti0, delta_betti1
-    # return round(np.array(delta_betti0).mean(),2), round(np.array(delta_betti0).std(),2), round(np.array(delta_betti1).mean(),2), round(np.array(delta_betti1).std(),2)
-
 
 def polygonize(mask, erosion=0):
     if erosion > 0:
@@ -218,19 +202,8 @@ def get_CDM_standards(p):
         except:
             CDM = 999
         accuracy, precision, recall, dice, iou = compute_metrics_from_images(mask_gt/255, mask_pred/255)
-        
         errors.append([accuracy, precision, recall, dice, iou, delta_betti0, delta_betti1, CDM])
-    # df = pd.DataFrame(errors, columns=['CDM', 'accuracy', 'precision', 'recall', 'dice', 'iou'])
     return errors
-
-import os
-import pickle
-from concurrent.futures import ProcessPoolExecutor
-
-import os
-from PIL import Image
-import numpy as np
-import pandas as pd
 
 def compute_metrics_from_images(gt, pred):
     tp = np.sum(pred * gt)
@@ -244,12 +217,6 @@ def compute_metrics_from_images(gt, pred):
     dice = (2 * tp) / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0
     iou = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0
     return round(100*accuracy, 2), round(100*precision, 2), round(100*recall, 2), round(100*dice, 2), round(100*iou, 2)
-
-
-import os
-import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
-
 
 def process_directory_parallel(fol, path):
     directory_path = os.path.join(path, fol)
